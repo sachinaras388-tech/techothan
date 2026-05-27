@@ -1,0 +1,111 @@
+# Wrapper / moved compose file
+#
+# This is the same compose file as `deployment/docker-compose.yml`.
+# Keep it for clearer structure.
+
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: fraud-detection-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: fraud_detection
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    ports:
+      - "27017:27017"
+    networks:
+      - fraud-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Server
+  backend:
+    build:
+      context: ..
+      dockerfile: deployment/containers/Dockerfile.backend
+    container_name: fraud-detection-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 5000
+      MONGODB_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-password}@mongodb:27017/fraud_detection?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      AI_SERVICE_URL: http://ai-service:8000
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - fraud-network
+    volumes:
+      - ../backend:/app/backend
+      - /app/backend/node_modules
+
+  # Frontend Static App
+  frontend:
+    build:
+      context: ..
+      dockerfile: deployment/containers/Dockerfile.frontend
+    container_name: fraud-detection-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - fraud-network
+
+  # AI Detection Service
+  ai-service:
+    build:
+      context: ..
+      dockerfile: deployment/containers/Dockerfile.ai
+    container_name: fraud-detection-ai
+    restart: unless-stopped
+    environment:
+      PORT: 8000
+      AI_SERVICE_API_KEY: ${AI_SERVICE_API_KEY}
+    ports:
+      - "8000:8000"
+    networks:
+      - fraud-network
+    volumes:
+      - ../ai-service:/app/ai-service
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: fraud-detection-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+      - ai-service
+    networks:
+      - fraud-network
+
+networks:
+  fraud-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+

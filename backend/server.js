@@ -93,6 +93,24 @@ const startServer = async () => {
     }
 
     initializeSocket(server);
+
+    server.on('error', (error) => {
+      if (error.syscall !== 'listen') {
+        logger.error('Server error:', error);
+        process.exit(1);
+      }
+
+      const bind = typeof config.port === 'string' ? `Pipe ${config.port}` : `Port ${config.port}`;
+
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`${bind} is already in use. Please stop the other process or change PORT in .env.`);
+        process.exit(1);
+      }
+
+      logger.error('Server error:', error);
+      process.exit(1);
+    });
+
     server.listen(config.port, () => {
       logger.info(`Server running on port ${config.port}`);
       logger.info(`Environment: ${config.env}`);

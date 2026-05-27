@@ -2,6 +2,7 @@ const { validationResult } = require('express-validator');
 const axios = require('axios');
 const { ScanHistory, SCAN_TYPES, SCAN_RESULTS } = require('../models/ScanHistory');
 const { Alert, ALERT_SEVERITY, ALERT_TYPES } = require('../models/Alert');
+const { User } = require('../models/User');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 const { APIError } = require('../middleware/errorHandler');

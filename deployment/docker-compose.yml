@@ -27,7 +27,7 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: deployment/Dockerfile.backend
+      dockerfile: deployment/containers/Dockerfile.backend
     container_name: fraud-detection-api
     restart: unless-stopped
     environment:
@@ -49,11 +49,23 @@ services:
       - ../backend:/app/backend
       - /app/backend/node_modules
 
+  # Frontend Static App
+  frontend:
+    build:
+      context: ..
+      dockerfile: deployment/containers/Dockerfile.frontend
+    container_name: fraud-detection-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - fraud-network
+
   # AI Detection Service
   ai-service:
     build:
       context: ..
-      dockerfile: deployment/Dockerfile.ai
+      dockerfile: deployment/containers/Dockerfile.ai
     container_name: fraud-detection-ai
     restart: unless-stopped
     environment:
@@ -75,10 +87,11 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - backend
+      - frontend
       - ai-service
     networks:
       - fraud-network
@@ -90,3 +103,4 @@ networks:
 volumes:
   mongodb_data:
   mongodb_config:
+

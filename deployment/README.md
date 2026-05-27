@@ -1,8 +1,13 @@
 # Deployment Guide
 
+## Current folder structure (clear)
+See: `deployment/README_STRUCTURE.md`
+
 ## Quick Start with Docker
 
+
 ### Prerequisites
+
 - Docker Engine 20.10+
 - Docker Compose 2.0+
 - 4GB RAM minimum
@@ -91,19 +96,20 @@ pm2 start main.py --name fraud-ai
 │                      Nginx (Port 80/443)                  │
 └─────────────────────────────────────────────────────────────┘
                               │
-            ┌─────────────────┴─────────────────┐
-            │                                   │
-    ┌───────▼────────┐                   ┌──────▼──────┐
-    │   Backend     │                   │ AI Service  │
-    │  (Port 5000)  │                   │ (Port 8000) │
-    └───────────────┘                   └─────────────┘
-            │
-    ┌───────┴───────┐
-    │              │
-┌───▼───┐      ┌──▼────┐
-│MongoDB│      │Redis │
-│ 27017│      │6379  │
-└──────┘      └──────┘
+            ┌──────────────┬──────────────┬────────────────┐
+            │              │              │                │
+    ┌───────▼────────┐  ┌──▼──────┐  ┌──────▼────────┐
+    │   Frontend    │  │Backend  │  │ AI Service    │
+    │   (Port 3000) │  │(Port 5000)│  │ (Port 8000)   │
+    └───────────────┘  └──────────┘  └───────────────┘
+            │              │
+    ┌───────┴───────┐      │
+    │               │      │
+┌───▼───┐      ┌──▼────┐  │
+│MongoDB│      │Redis │  │
+│ 27017│      │6379  │  │
+└──────┘      └──────┘  │
+                       │
 ```
 
 ---
@@ -205,6 +211,21 @@ docker exec fraud-detection-mongo mongorestore --archive=/backup/dump.gz --gzip
 - [ ] Setup log rotation
 - [ ] Configure backup schedule
 - [ ] Enable security headers in nginx
+
+---
+
+## Clear folder structure (current)
+
+- `deployment/compose/docker-compose.yml`
+- `deployment/config/nginx.conf`
+- `deployment/config/nginx.frontend.conf`
+- `deployment/env/.env.development.example`, `deployment/env/.env.production.example`
+- `deployment/containers/Dockerfile.backend`, `Dockerfile.frontend`, `Dockerfile.ai`
+- `deployment/pm2/ecosystem.config.js`
+- `deployment/ssl/` (certs for nginx)
+
+> Note: If you still see old files like `deployment/docker-compose.yml`, that means the move step was not completed yet. Use the paths shown above for the new structure.
+
 
 ---
 

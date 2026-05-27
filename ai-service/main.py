@@ -10,6 +10,7 @@ import os
 from models.text_classifier import TextClassifier
 from models.url_scanner import URLScanner
 from models.upi_detector import UPIDetector
+from models.email_detector import EmailDetector
 
 app = FastAPI(
     title="AI Fraud Detection Service",
@@ -28,6 +29,7 @@ app.add_middleware(
 text_classifier = TextClassifier()
 url_scanner = URLScanner()
 upi_detector = UPIDetector()
+email_detector = EmailDetector()
 
 class TextAnalysisRequest(BaseModel):
     text: str = Field(..., min_length=10, max_length=5000)
@@ -41,6 +43,12 @@ class UPIAnalysisRequest(BaseModel):
     amount: Optional[float] = None
     merchant_name: Optional[str] = None
     transaction_note: Optional[str] = None
+    
+class EmailAnalysisRequest(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200)
+    body: str = Field(..., min_length=1, max_length=10000)
+    sender: Optional[str] = None
+    recipient: Optional[str] = None
     
 class PhoneAnalysisRequest(BaseModel):
     phone_number: str = Field(..., min_length=10, max_length=15)
@@ -75,7 +83,8 @@ async def health():
         "models": {
             "text_classifier": "loaded",
             "url_scanner": "loaded",
-            "upi_detector": "loaded"
+            "upi_detector": "loaded",
+            "email_detector": "loaded"
         }
     }
 
@@ -188,6 +197,54 @@ async def analyze_upi(request: UPIAnalysisRequest):
             confidence=result["confidence"],
             type=result["type"],
             category="upi_payment",
+            details=result.get("details", {}),
+            recommendations=recommendations
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze/email", response_model=AnalysisResponse)
+async def analyze_email(request: EmailAnalysisRequest):
+    try:
+        result = email_detector.analyze(
+            request.subject,
+            request.body,
+            request.sender,
+            request.recipient
+        )
+        
+        recommendations = []
+        if result["is_fraud"]:
+            if result["type"] == "phishing":
+                recommendations = [
+                    "Do not click any links in this email",
+                    "Do not download attachments",
+                    "Do not reply to this email",
+                    "Report as phishing to your email provider",
+                    "Mark as spam"
+                ]
+            elif result["type"] == "scam":
+                recommendations = [
+                    "Do not respond to this email",
+                    "Do not share personal information",
+                    "Block the sender",
+                    "Report to email provider"
+                ]
+            elif result["type"] == "threat":
+                recommendations = [
+                    "Do not engage with the sender",
+                    "Save evidence for legal purposes",
+                    "Report to authorities if threatened",
+                    "Block the sender immediately"
+                ]
+        
+        return AnalysisResponse(
+            success=True,
+            is_fraud=result["is_fraud"],
+            risk_score=result["risk_score"],
+            confidence=result["confidence"],
+            type=result["type"],
+            category=result.get("category", "email"),
             details=result.get("details", {}),
             recommendations=recommendations
         )

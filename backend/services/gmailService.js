@@ -212,15 +212,41 @@ const parseEmail = async (accessToken, messageId) => {
   `;
 
   // AI ANALYSIS
-  const textAnalysis = analyzeTextRisk(content);
-  const linkAnalysis = analyzeLinks(links);
+  let analysis;
+  try {
+    const axios = require('axios');
+    const config = require('../config/env');
+    const aiResponse = await axios.post(`${config.aiServiceUrl}/analyze/email`, {
+      subject: headers.subject,
+      body: text,
+      sender: headers.from,
+    }, {
+      headers: { 'X-API-Key': config.aiServiceApiKey },
+      timeout: 10000,
+    });
+    analysis = aiResponse.data;
+  } catch (aiError) {
+    // Fallback to local analysis
+    const textAnalysis = analyzeTextRisk(content);
+    const linkAnalysis = analyzeLinks(links);
 
-  const finalScore = Math.min(
-    textAnalysis.score + linkAnalysis.score,
-    100
-  );
+    const finalScore = Math.min(
+      textAnalysis.score + linkAnalysis.score,
+      100
+    );
 
-  const isFraud = finalScore >= 70;
+    const isFraud = finalScore >= 70;
+
+    analysis = {
+      prediction: isFraud ? "SCAM" : "SAFE",
+      risk: finalScore >= 70 ? "High" : finalScore >= 40 ? "Medium" : "Low",
+      score: finalScore,
+      confidence: finalScore / 100,
+      matchedKeywords: textAnalysis.matchedKeywords,
+      riskyLinks: linkAnalysis.riskyLinks,
+      reason: isFraud ? "Suspicious keywords + risky links detected" : "No threat detected"
+    };
+  }
 
   return {
     id: message.id,
@@ -228,24 +254,7 @@ const parseEmail = async (accessToken, messageId) => {
     body: text,
     htmlBody: html,
     links,
-
-    analysis: {
-      prediction: isFraud ? "SCAM" : "SAFE",
-      risk:
-        finalScore >= 70
-          ? "High"
-          : finalScore >= 40
-          ? "Medium"
-          : "Low",
-      score: finalScore,
-      confidence: finalScore,
-      matchedKeywords: textAnalysis.matchedKeywords,
-      riskyLinks: linkAnalysis.riskyLinks,
-      reason:
-        isFraud
-          ? "Suspicious keywords + risky links detected"
-          : "No threat detected"
-    }
+    analysis: analysis
   };
 };
 
